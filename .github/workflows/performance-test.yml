@@ -4,9 +4,14 @@ on:
   push:
     branches:
     - "staging"
+    # TEMPORARY (it-revamp-final perf check): run the perf suite from this branch. Never merges.
+    - "temp-pf"
     paths:
     - '**/*.go'
     - '**/*.java'
+    # TEMPORARY (it-revamp-final perf check): without this a push touching only the workflow does not
+    # match the filter above, so the run never starts. Never merges.
+    - '.github/workflows/performance-test.yml'
 
 permissions:
   actions: read
@@ -136,6 +141,22 @@ jobs:
       with:
         name: benchmarks_${{ matrix.driver }}
         path: ./tests/${{ matrix.driver }}/testdata/benchmarks.json
+        retention-days: 90
+
+    # Everything the run produced, for offline verification; the secret-derived configs
+    # (source.json, iceberg_destination.json) are deliberately not listed.
+    - name: Upload Performance Test Details
+      uses: actions/upload-artifact@v4
+      if: always()
+      continue-on-error: true
+      with:
+        name: perf_details_${{ matrix.driver }}
+        path: |
+          tests/${{ matrix.driver }}/testdata/stats.json
+          tests/${{ matrix.driver }}/testdata/streams.json
+          tests/${{ matrix.driver }}/testdata/state.json
+          tests/${{ matrix.driver }}/testdata/benchmarks.json
+          tests/${{ matrix.driver }}/testdata/logs
         retention-days: 90
    
     - name: Sleep server
