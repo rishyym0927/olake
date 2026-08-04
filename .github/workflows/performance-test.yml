@@ -143,6 +143,12 @@ jobs:
         path: ./tests/${{ matrix.driver }}/testdata/benchmarks.json
         retention-days: 90
 
+    # The driver container runs as root, so files it writes into the mounted testdata come back
+    # root-owned and the artifact zip cannot read them (EACCES on logs/*/olake.log).
+    - name: Fix testdata permissions
+      if: always()
+      run: sudo chmod -R a+rX tests/${{ matrix.driver }}/testdata || true
+
     # Everything the run produced, for offline verification; the secret-derived configs
     # (source.json, iceberg_destination.json) are deliberately not listed.
     - name: Upload Performance Test Details
