@@ -89,12 +89,16 @@ var syncCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		// setup conector first
+		stopSetup := logger.TrackTiming("sync", "connector setup")
 		err := connector.Setup(cmd.Context())
+		stopSetup()
 		if err != nil {
 			return err
 		}
 		// Get Source Streams, sending 0 max discover threads to discover
+		stopDiscover := logger.TrackTiming("sync", "discover streams")
 		streams, err := connector.Discover(cmd.Context(), 0, true)
+		stopDiscover()
 		if err != nil {
 			return err
 		}
@@ -113,6 +117,7 @@ var syncCmd = &cobra.Command{
 		dropStreams := []types.StreamInterface{}
 		dropStreams = append(dropStreams, selectedStreamsMetadata.FullLoadStreams...)
 		if len(dropStreams) > 0 {
+			stopClear := logger.TrackTiming("sync", "clear destination")
 			logger.Infof("Clearing state for full refresh streams")
 			// get the state for modification in clearstate
 			connector.SetupState(state)
@@ -122,6 +127,7 @@ var syncCmd = &cobra.Command{
 			if cerr := destination.DropStreams(cmd.Context(), destinationConfig, dropStreams); cerr != nil {
 				return fmt.Errorf("failed to clear destination: %s", cerr)
 			}
+			stopClear()
 		}
 
 		// Build the writer pool up front: it starts destination-owned resources

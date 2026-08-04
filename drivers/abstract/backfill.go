@@ -19,7 +19,9 @@ func (a *AbstractDriver) Backfill(mainCtx context.Context, backfilledStreams cha
 	chunksSet := a.state.GetChunks(stream.Self())
 	var err error
 	if chunksSet == nil || chunksSet.Len() == 0 {
+		stopPlan := logger.TrackTiming(stream.ID(), "chunk planning")
 		chunksSet, err = a.driver.GetOrSplitChunks(mainCtx, pool, stream)
+		stopPlan()
 		if err != nil {
 			return fmt.Errorf("failed to get or split chunks: %s", err)
 		}
@@ -49,7 +51,12 @@ func (a *AbstractDriver) Backfill(mainCtx context.Context, backfilledStreams cha
 		defer backfillCtxCancel()
 
 		threadID := generateThreadID(stream.ID(), fmt.Sprintf("min[%v]-max[%v]", chunk.Min, chunk.Max))
+		// Declared before the cleanup defers below so it fires after them: the span covers
+		// the writer commit as well, not just the read loop.
+		defer logger.TrackTiming(threadID, "chunk total")()
+		stopWriter := logger.TrackTiming(threadID, "writer setup")
 		inserter, prevMetadataState, err := pool.NewWriter(backfillCtx, stream, destination.WithBackfill(true), destination.WithThreadID(threadID), destination.WithApplyFilter(slices.Contains(constants.FullRefreshPostReadFilterDrivers, constants.DriverType(a.driver.Type()))))
+		stopWriter()
 		if err != nil {
 			return fmt.Errorf("failed to create new writer thread: %s", err)
 		}
@@ -76,6 +83,8 @@ func (a *AbstractDriver) Backfill(mainCtx context.Context, backfilledStreams cha
 
 		logger.Infof("Thread[%s]: created writer for chunk min[%s] and max[%s] of stream %s", threadID, chunk.Min, chunk.Max, stream.ID())
 
+		stopIterate := logger.TrackTiming(threadID, "chunk iterate")
+		defer stopIterate()
 		return a.driver.ChunkIterator(backfillCtx, stream, chunk, func(ctx context.Context, data map[string]any, sourceBytes int64) error {
 			olakeID := utils.GetKeysHash(data, stream.GetStream().SourceDefinedPrimaryKey.Array()...)
 			olakeColumns := map[string]any{

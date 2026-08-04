@@ -145,6 +145,12 @@ func (w *WriterPool) NewWriter(ctx context.Context, stream types.StreamInterface
 		one(opts)
 	}
 
+	timingScope := opts.ThreadID
+	if timingScope == "" {
+		timingScope = stream.ID()
+	}
+	defer logger.TrackTiming(timingScope, "writer thread setup")()
+
 	rawStreamArtifact, ok := w.writerSchema.Load(stream.ID())
 	if !ok {
 		return nil, nil, fmt.Errorf("failed to get stream artifacts for stream[%s]", stream.ID())
@@ -231,6 +237,8 @@ func (wt *WriterThread) flush(ctx context.Context, buf []types.RawRecord) (err e
 		return nil
 	}
 
+	defer logger.TrackTiming(wt.threadID, fmt.Sprintf("flush[%d records]", len(buf)))()
+
 	defer func() {
 		if err == nil {
 			if rec := recover(); rec != nil {
@@ -282,6 +290,8 @@ func (wt *WriterThread) rollbackStats() {
 }
 
 func (wt *WriterThread) Close(ctx context.Context, finalMetadataState any) (err error) {
+	// Covers the drain of in-flight flushes plus the destination commit.
+	defer logger.TrackTiming(wt.threadID, "close+commit")()
 	select {
 	case <-ctx.Done():
 		// Wait for in-flight flushes so rollback below can't race their stat updates.

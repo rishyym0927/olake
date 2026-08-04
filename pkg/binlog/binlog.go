@@ -74,7 +74,9 @@ func (c *Connection) StreamMessages(ctx context.Context, client *sqlx.DB, latest
 
 	logger.Infof("Starting MySQL CDC from %s:%d to %s:%d", c.CurrentPos.Name, c.CurrentPos.Pos, latestBinlogPos.Name, latestBinlogPos.Pos)
 
+	stopStart := logger.TrackTiming("binlog", "start sync")
 	streamer, err := c.syncer.StartSync(c.CurrentPos)
+	stopStart()
 	if err != nil {
 		return fmt.Errorf("failed to start binlog sync: %s", err)
 	}

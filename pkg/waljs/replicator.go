@@ -137,6 +137,8 @@ func AdvanceLSN(ctx context.Context, db *sqlx.DB, slot, currentWalPos string) er
 // Confirm that Logs has been recorded
 // in fake ack prev confirmed flush lsn is sent
 func AcknowledgeLSN(ctx context.Context, db *sqlx.DB, socket *Socket, fakeAck bool) error {
+	// Covers the standby status send plus the 3s-tick wait for the slot to confirm.
+	defer logger.TrackTiming("waljs", "acknowledge lsn")()
 	walPosition := utils.Ternary(fakeAck, socket.ConfirmedFlushLSN, socket.ClientXLogPos).(pglogrepl.LSN)
 	err := pglogrepl.SendStandbyStatusUpdate(ctx, socket.pgConn, pglogrepl.StandbyStatusUpdate{
 		WALWritePosition: walPosition,

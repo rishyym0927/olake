@@ -22,8 +22,11 @@ import (
 //   - Concurrent: Start each stream's CDC immediately after its backfill completes (can overlap)
 func (a *AbstractDriver) RunChangeStream(mainCtx context.Context, pool *destination.WriterPool, streams ...types.StreamInterface) error {
 	// run pre cdc of drivers
-	if err := a.driver.PreCDC(mainCtx, streams); err != nil {
-		return fmt.Errorf("failed in pre cdc run for driver[%s]: %s", a.driver.Type(), err)
+	stopPre := logger.TrackTiming("cdc", "pre-cdc setup")
+	preErr := a.driver.PreCDC(mainCtx, streams)
+	stopPre()
+	if preErr != nil {
+		return fmt.Errorf("failed in pre cdc run for driver[%s]: %s", a.driver.Type(), preErr)
 	}
 
 	isSequentialMode, isParallelMode, isConcurrentMode := a.driver.ChangeStreamConfig()
@@ -104,8 +107,15 @@ func (a *AbstractDriver) streamChanges(mainCtx context.Context, pool *destinatio
 	cdcCtx, cdcCtxCancel := context.WithCancel(mainCtx)
 	defer cdcCtxCancel()
 
+	// Declared before the post-cdc defer below so it fires after it: the span covers
+	// the post-cdc hook (final acks, state commit) as well as the change stream itself.
+	defer logger.TrackTiming("cdc", fmt.Sprintf("stream changes[%d] total", streamIndex))()
+
 	defer func() {
-		if postCDCErr := a.driver.PostCDC(cdcCtx, streamIndex); postCDCErr != nil {
+		stopPost := logger.TrackTiming("cdc", fmt.Sprintf("post-cdc[%d]", streamIndex))
+		postCDCErr := a.driver.PostCDC(cdcCtx, streamIndex)
+		stopPost()
+		if postCDCErr != nil {
 			err = utils.Ternary(err == nil, fmt.Errorf("post cdc error: %s", postCDCErr), fmt.Errorf("%s: post cdc error: %s", err, postCDCErr)).(error)
 		}
 	}()

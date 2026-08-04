@@ -48,7 +48,9 @@ var discoverCmd = &cobra.Command{
 			return compareStreams()
 		}
 
+		stopSetup := logger.TrackTiming("discover", "connector setup")
 		err := connector.Setup(cmd.Context())
+		stopSetup()
 		if err != nil {
 			return err
 		}
@@ -58,7 +60,9 @@ var discoverCmd = &cobra.Command{
 		discoverCtx, cancel := context.WithTimeout(cmd.Context(), discoverTimeout)
 		defer cancel()
 
+		stopDiscover := logger.TrackTiming("discover", "streams discovery")
 		streams, err := connector.Discover(discoverCtx, maxDiscoverThreads, false)
+		stopDiscover()
 		if err != nil {
 			return err
 		}
