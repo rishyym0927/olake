@@ -2007,6 +2007,7 @@ func (cfg *PerformanceTest) TestPerformance(t *testing.T) {
 			Env: map[string]string{
 				"TELEMETRY_DISABLED":  "true",
 				"OLAKE_SKIP_MOD_TIDY": "true",
+				"OLAKE_TIMING":        "1",
 			},
 			LifecycleHooks: []testcontainers.ContainerLifecycleHooks{
 				{
