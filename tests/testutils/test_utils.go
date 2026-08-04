@@ -1974,6 +1974,11 @@ func (cfg *PerformanceTest) TestPerformance(t *testing.T) {
 	syncWithTimeout := func(ctx context.Context, c testcontainers.Container, cmd string) ([]byte, error) {
 		timedCtx, cancel := context.WithTimeout(ctx, SyncTimeout)
 		defer cancel()
+		// The exec stream is not drained while the sync runs, so a chatty sync fills the docker
+		// buffer (~6.2k lines) and the next synchronous log write freezes the whole driver. Send
+		// the console to the mounted testdata instead, where the details artifact picks it up.
+		consoleDir := fmt.Sprintf("/test-olake/tests/%s/testdata/logs", cfg.TestConfig.Driver)
+		cmd = fmt.Sprintf("mkdir -p %[1]s && { %[2]s; } > %[1]s/sync_console_$(date +%%s).log 2>&1", consoleDir, cmd)
 		code, output, err := ExecCommand(timedCtx, c, cmd)
 		// check if sync was canceled due to timeout (expected)
 		if timedCtx.Err() == context.DeadlineExceeded {
