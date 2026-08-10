@@ -13,6 +13,12 @@ func TestS3Integration(t *testing.T) {
 	t.Run("Variants", func(t *testing.T) {
 		for _, variant := range S3TestVariants {
 			t.Run(variant.Name, func(t *testing.T) {
+
+				filterConfig := S3FilterConfig
+				if variant.DataFormat == "xml" {
+					filterConfig = S3XMLFilterConfig
+				}
+
 				// No t.Parallel(): variants share the bind-mounted checkout, so a concurrent
 				// build of drivers/s3/olake fails with "Text file busy" (same as kafka).
 				// TODO: Add t.Parallel() back once we update the testfamework to use driver docker images
@@ -31,7 +37,7 @@ func TestS3Integration(t *testing.T) {
 					DestinationDB:                    S3DestinationDB,
 					CursorField:                      S3CursorField,
 					PartitionRegex:                   S3PartitionRegex,
-					FilterConfig:                     S3FilterConfig,
+					FilterConfig:                     filterConfig,
 				}
 				cfg.TestIntegration(t)
 			})
