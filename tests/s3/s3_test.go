@@ -13,7 +13,6 @@ func TestS3Integration(t *testing.T) {
 	t.Run("Variants", func(t *testing.T) {
 		for _, variant := range S3TestVariants {
 			t.Run(variant.Name, func(t *testing.T) {
-
 				filterConfig := S3FilterConfig
 				if variant.DataFormat == "xml" {
 					filterConfig = S3XMLFilterConfig
